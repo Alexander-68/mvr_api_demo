@@ -1,7 +1,10 @@
 (function () {
   "use strict";
 
-  var API_PORT = 3333;
+  var API_PORTS = {
+    http: 3333,
+    https: 3334
+  };
   var REQUEST_TIMEOUT_MS = 4500;
   var SCAN_TIMEOUT_MS = 1600;
   var SCAN_CONCURRENCY = 16;
@@ -9,11 +12,13 @@
 
   var state = {
     devices: [],
+    apiScheme: "http",
     selectedHost: "",
     session: "",
     settings: null,
     snapshotUrl: "",
-    scanning: false
+    scanning: false,
+    showCertHelper: false
   };
 
   var els = {};
@@ -28,7 +33,7 @@
 
   function cacheElements() {
     [
-      "sessionPill", "directForm", "directHost", "scanForm", "subnetPrefix",
+      "sessionPill", "apiScheme", "apiPort", "certHelper", "trustCertBtn", "directForm", "directHost", "scanForm", "subnetPrefix",
       "scanStart", "scanEnd", "scanBtn", "scanProgress", "scanLabel",
       "deviceList", "clearDevicesBtn", "refreshInfoBtn", "selectedDevice",
       "deviceInfo", "networkInfo", "cameraInfo", "storageInfo", "studyInfo",
@@ -76,6 +81,8 @@
       ".inline-row,.button-row,.two-col,.scan-grid,.info-grid,.progress-wrap{display:grid;gap:10px}",
       ".inline-row{grid-template-columns:1fr auto}.button-row,.two-col,.scan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.info-grid{grid-template-columns:repeat(3,minmax(0,1fr))}",
       ".button-row button{width:100%}.scan-wide,.scan-grid button,.info-grid .wide{grid-column:1/-1}",
+      ".endpoint-grid{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:10px;align-items:end}.field-label{color:#657282;font-weight:700}.port-output{display:grid;min-height:44px;align-items:center;border:1px solid #d8dee5;border-radius:6px;padding:0 12px;background:#f0f4f7;color:#17202a;font-weight:800}",
+      ".cert-helper{display:grid;gap:10px;border:1px solid rgba(154,91,0,.34);border-radius:8px;padding:12px;background:rgba(154,91,0,.1);color:#17202a}.cert-helper[hidden]{display:none}.cert-helper p{margin:0;color:#657282;font-size:14px;line-height:1.35}.cert-helper button{justify-self:start}",
       ".checkbox-line{display:flex;align-items:center;gap:9px;min-height:38px;color:#17202a;font-weight:600}.checkbox-line input{width:20px;min-height:20px;height:20px}",
       ".progress-wrap{grid-template-columns:1fr auto;align-items:center;margin:14px 0;color:#657282;font-weight:700}.progress-track{height:10px;overflow:hidden;border-radius:999px;background:#f0f4f7}.progress-bar{width:0;height:100%;background:#0d6b77}",
       ".action-feedback{min-height:42px;margin:10px 0 14px;border:1px solid #d8dee5;border-radius:8px;padding:10px 12px;background:#f0f4f7;color:#657282;font-weight:800;line-height:1.3;overflow-wrap:anywhere}.action-feedback.ok{border-color:rgba(19,108,66,.32);background:rgba(19,108,66,.09);color:#136c42}.action-feedback.bad{border-color:rgba(180,43,58,.34);background:rgba(180,43,58,.08);color:#b42b3a}.action-feedback.warn{border-color:rgba(154,91,0,.34);background:rgba(154,91,0,.1);color:#9a5b00}.action-feedback.busy{border-color:rgba(13,107,119,.32);background:#eef8f8;color:#0d6b77}",
@@ -85,13 +92,16 @@
       ".muted{color:#657282}",
       ".snapshot-preview{display:grid;min-height:160px;place-items:center;overflow:hidden;border:1px dashed #d8dee5;border-radius:8px;background:#f0f4f7;text-align:center}.snapshot-preview img{display:block;width:100%;height:auto;max-height:320px;object-fit:contain}",
       ".log-panel{margin:0 18px 18px}.request-log{display:grid;gap:8px;max-height:260px;margin:0;padding-left:24px;overflow:auto}",
-      "@media(max-width:1160px){.discovery-content,.control-content,.title-status,.info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.devices-column{grid-column:1/-1}}@media(max-width:760px){.app-header,.layout,.section-content,.title-status,.info-grid,.button-row,.two-col,.inline-row,.scan-grid{display:grid;grid-template-columns:1fr}.devices-column{grid-column:auto}.app-header,.layout{padding:14px}.log-panel{margin:0 14px 14px}}"
+      "@media(max-width:1160px){.discovery-content,.control-content,.title-status,.info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.devices-column{grid-column:1/-1}}@media(max-width:760px){.app-header,.layout,.section-content,.title-status,.info-grid,.button-row,.two-col,.inline-row,.endpoint-grid,.scan-grid{display:grid;grid-template-columns:1fr}.devices-column{grid-column:auto}.app-header,.layout{padding:14px}.log-panel{margin:0 14px 14px}}"
     ].join("");
     document.head.appendChild(style);
     log("styles.css did not apply; injected local fallback styles for this browser", "bad");
   }
 
   function bindEvents() {
+    els.apiScheme.addEventListener("change", onApiSchemeChange);
+    els.trustCertBtn.addEventListener("click", onTrustCertificate);
+    els.directHost.addEventListener("input", onEndpointInputChange);
     els.directForm.addEventListener("submit", onDirectProbe);
     els.scanForm.addEventListener("submit", onScan);
     els.clearDevicesBtn.addEventListener("click", function () {
@@ -142,6 +152,8 @@
     try {
       var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
       state.devices = Array.isArray(saved.devices) ? saved.devices : [];
+      state.apiScheme = normalizeApiScheme(saved.apiScheme);
+      els.apiScheme.value = state.apiScheme;
       state.selectedHost = saved.selectedHost || "";
       els.directHost.value = saved.directHost || state.selectedHost || "";
       els.subnetPrefix.value = saved.subnetPrefix || els.subnetPrefix.value;
@@ -157,6 +169,7 @@
   function saveState() {
     var data = {
       devices: state.devices,
+      apiScheme: state.apiScheme,
       selectedHost: state.selectedHost,
       directHost: els.directHost.value.trim(),
       subnetPrefix: els.subnetPrefix.value.trim(),
@@ -169,10 +182,18 @@
   }
 
   function render() {
+    renderEndpoint();
     renderSession();
     renderDeviceList();
     renderSelectedDevice();
     updateControls();
+  }
+
+  function renderEndpoint() {
+    state.apiScheme = normalizeApiScheme(state.apiScheme);
+    els.apiScheme.value = state.apiScheme;
+    els.apiPort.value = String(getApiPort());
+    els.apiPort.textContent = String(getApiPort());
   }
 
   function renderSession() {
@@ -253,7 +274,41 @@
         control.disabled = !hasSession;
       }
     });
+    els.certHelper.hidden = !state.showCertHelper || normalizeApiScheme(state.apiScheme) !== "https";
+    els.trustCertBtn.disabled = els.certHelper.hidden || !getEndpointHost();
     els.settingsModalBtn.disabled = !state.settings;
+  }
+
+  function onApiSchemeChange() {
+    state.apiScheme = normalizeApiScheme(els.apiScheme.value);
+    state.session = "";
+    state.settings = null;
+    state.showCertHelper = false;
+    renderSettings(null);
+    saveState();
+    render();
+    log("Using " + state.apiScheme.toUpperCase() + " on port " + getApiPort(), "info");
+  }
+
+  function onEndpointInputChange() {
+    state.showCertHelper = false;
+    updateControls();
+  }
+
+  function onTrustCertificate() {
+    var host = getEndpointHost();
+    if (!host) {
+      setFeedback(els.directFeedback, "Enter a device IP or host before opening the certificate page", "bad");
+      return;
+    }
+
+    var url = buildApiEndpoint(host) + "/api/device";
+    var opened = window.open(url, "_blank", "noopener");
+    if (opened) {
+      setFeedback(els.directFeedback, "Opened " + url + ". Accept the certificate in the new tab, then retry Probe.", "busy");
+    } else {
+      setFeedback(els.directFeedback, "Browser blocked the new tab. Open " + url + " manually, accept the certificate, then retry Probe.", "bad");
+    }
   }
 
   function onDirectProbe(event) {
@@ -265,16 +320,23 @@
       return;
     }
 
-    setFeedback(els.directFeedback, "Probing " + host + ":" + API_PORT + "...", "busy");
+    setFeedback(els.directFeedback, "Probing " + formatEndpoint(host) + "...", "busy");
+    state.showCertHelper = false;
+    updateControls();
     setBusy(els.directForm.querySelector("button"), true);
     fetchDevice(host, REQUEST_TIMEOUT_MS).then(function (device) {
       upsertDevice(host, device);
+      state.showCertHelper = false;
       selectDevice(host);
       saveState();
-      log("Found MVR device at " + host, "ok");
-      setFeedback(els.directFeedback, "Probe OK: " + deviceTitle(device) + " at " + host, "ok");
+      log("Found MVR device at " + formatEndpoint(host), "ok");
+      setFeedback(els.directFeedback, "Probe OK: " + deviceTitle(device) + " at " + formatEndpoint(host), "ok");
     }).catch(function (error) {
       handleActionError(error, els.directFeedback);
+      if (normalizeApiScheme(state.apiScheme) === "https" && normalizeErrorMessage(error).indexOf("Failed to fetch") !== -1) {
+        state.showCertHelper = true;
+        updateControls();
+      }
     }).finally(function () {
       setBusy(els.directForm.querySelector("button"), false);
     });
@@ -309,7 +371,7 @@
     els.scanBtn.disabled = true;
     els.scanProgress.style.width = "0%";
     els.scanLabel.textContent = "Scanning";
-    setFeedback(els.scanFeedback, "Scanning " + hosts.length + " addresses...", "busy");
+    setFeedback(els.scanFeedback, "Scanning " + hosts.length + " addresses on " + state.apiScheme.toUpperCase() + " port " + getApiPort() + "...", "busy");
     saveState();
 
     var foundCount = 0;
@@ -317,8 +379,8 @@
       return fetchDevice(host, SCAN_TIMEOUT_MS).then(function (device) {
         foundCount += 1;
         upsertDevice(host, device);
-        log("Found " + deviceTitle(device) + " at " + host, "ok");
-        setFeedback(els.scanFeedback, "Found " + deviceTitle(device) + " at " + host, "ok");
+        log("Found " + deviceTitle(device) + " at " + formatEndpoint(host), "ok");
+        setFeedback(els.scanFeedback, "Found " + deviceTitle(device) + " at " + formatEndpoint(host), "ok");
         renderDeviceList();
       }).catch(function () {
         return null;
@@ -371,6 +433,7 @@
     state.selectedHost = normalizeHost(host);
     state.session = "";
     state.settings = null;
+    state.showCertHelper = false;
     renderSettings(null);
     saveState();
     render();
@@ -750,7 +813,7 @@
 
   function fetchDevice(host, timeoutMs) {
     var normalized = normalizeHost(host);
-    var url = "http://" + normalized + ":" + API_PORT + "/api/device";
+    var url = buildApiEndpoint(normalized) + "/api/device";
     return fetchWithTimeout(url, { method: "GET" }, timeoutMs).then(function (response) {
       return readResponse(response, "json").then(function (data) {
         if (!response.ok) {
@@ -762,7 +825,7 @@
       if (error && error.name !== "AbortError") {
         return checkOpaqueReachability(url, timeoutMs).then(function (reachable) {
           if (reachable) {
-            throw new Error("MVR at " + normalized + ":" + API_PORT + " is reachable, but the browser cannot read /api/device. The recorder response is missing CORS headers. Use firmware with CORS support, a browser launched with web security disabled for demo testing, or a local proxy.");
+            throw new Error("MVR at " + formatEndpoint(normalized) + " is reachable, but the browser cannot read /api/device. The recorder response is missing CORS headers. Use firmware with CORS support, a browser launched with web security disabled for demo testing, or a local proxy.");
           }
           throw error;
         });
@@ -808,7 +871,7 @@
   }
 
   function buildApiUrl(host, path, useSession) {
-    var url = "http://" + normalizeHost(host) + ":" + API_PORT + "/api/" + path.replace(/^\/+/, "");
+    var url = buildApiEndpoint(host) + "/api/" + path.replace(/^\/+/, "");
     if (useSession) {
       if (!state.session) {
         throw new Error("No active session");
@@ -816,6 +879,18 @@
       url += (url.indexOf("?") === -1 ? "?" : "&") + "session=" + encodeURIComponent(state.session);
     }
     return url;
+  }
+
+  function buildApiEndpoint(host) {
+    return normalizeApiScheme(state.apiScheme) + "://" + normalizeHost(host) + ":" + getApiPort();
+  }
+
+  function formatEndpoint(host) {
+    return buildApiEndpoint(host);
+  }
+
+  function getEndpointHost() {
+    return normalizeHost(els.directHost.value || state.selectedHost);
   }
 
   function upsertDevice(host, device) {
@@ -843,12 +918,20 @@
     });
   }
 
+  function normalizeApiScheme(value) {
+    return value === "https" ? "https" : "http";
+  }
+
+  function getApiPort() {
+    return API_PORTS[normalizeApiScheme(state.apiScheme)];
+  }
+
   function normalizeHost(value) {
     return String(value || "")
       .trim()
       .replace(/^https?:\/\//i, "")
       .replace(/\/.*$/, "")
-      .replace(/:3333$/, "");
+      .replace(/:\d+$/, "");
   }
 
   function compareHosts(a, b) {
@@ -1010,7 +1093,11 @@
   function handleActionError(error, feedbackElement) {
     var message = normalizeErrorMessage(error);
     if (message.indexOf("Failed to fetch") !== -1) {
-      message += ". Check the IP address and network route. Check if Remote Access is enabled on the target MVR recorder.";
+      if (normalizeApiScheme(state.apiScheme) === "https") {
+        message += ". Check the IP address and network route. If the recorder uses a self-signed certificate, open " + formatEndpoint(getEndpointHost()) + "/api/device in this browser and accept or trust the certificate, then retry.";
+      } else {
+        message += ". Check the IP address and network route. Check if Remote Access is enabled on the target MVR recorder.";
+      }
     }
     setFeedback(feedbackElement, message, "bad");
     log(message, "bad");

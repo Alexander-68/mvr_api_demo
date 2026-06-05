@@ -293,6 +293,61 @@ h3 {
   gap: 6px;
 }
 
+.endpoint-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  gap: 10px;
+  align-items: end;
+}
+
+.field-label {
+  color: #657282;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.port-output {
+  display: grid;
+  min-height: 44px;
+  align-items: center;
+  border: 1px solid #d8dee5;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 12px;
+  background: #f0f4f7;
+  background: var(--panel-soft);
+  color: #17202a;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.cert-helper {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(154, 91, 0, 0.34);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(154, 91, 0, 0.1);
+  color: #17202a;
+  color: var(--text);
+}
+
+.cert-helper[hidden] {
+  display: none;
+}
+
+.cert-helper p {
+  margin: 0;
+  color: #657282;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.cert-helper button {
+  justify-self: start;
+}
+
 .checkbox-line {
   display: flex;
   align-items: center;
@@ -675,6 +730,7 @@ dd {
   .button-row,
   .two-col,
   .inline-row,
+  .endpoint-grid,
   .scan-grid {
     grid-template-columns: 1fr;
   }
