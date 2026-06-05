@@ -1,0 +1,1492 @@
+openapi: 3.0.0
+info:
+  title: MVR API
+  version: "1.0.0"
+  description: API for remotely controlling the MVR device.
+servers:
+  - url: http://{mvr_ip}:3333/api
+    variables:
+      mvr_ip:
+        default: 192.168.1.50
+        description: IP address of the MVR device
+tags:
+  - name: Session
+    description: Session management
+  - name: Device
+    description: Device information and status
+  - name: Storage
+    description: Storage and file management
+  - name: Study
+    description: Study lifecycle and media capture
+  - name: Stream
+    description: Live video and audio streaming
+  - name: System
+    description: System level operations
+  - name: Notifications
+    description: Real-time event notifications
+  - name: DICOM
+    description: DICOM worklist and PACS integration
+  - name: Misc
+    description: Miscellaneous commands
+paths:
+  /begin:
+    post:
+      tags:
+        - Session
+      summary: Begin a remote-control session
+      security:
+        - basicAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoteClientInfo'
+      responses:
+        '200':
+          description: Session started successfully.
+          headers:
+            X-session:
+              schema:
+                type: string
+              description: Session ID for subsequent requests.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeginResponse'
+  /end:
+    post:
+      tags:
+        - Session
+      summary: End a remote-control session
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Session ended successfully.
+  /ping:
+    get:
+      tags:
+        - Session
+      summary: Keep-alive command
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Session is alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: Alive
+  /cameras:
+    get:
+      tags:
+        - Device
+      summary: Get list of cameras
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: A list of cameras.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cameras:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Camera'
+  /cameras/usbCamResolutions:
+    get:
+      tags:
+        - Device
+      summary: Get supported USB camera resolutions
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: A list of resolutions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Resolution'
+  /cameras/{index}:
+    get:
+      tags:
+        - Device
+      summary: Get camera information
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: index
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Camera information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Camera'
+  /cameras/{index}/fps:
+    get:
+      tags:
+        - Device
+      summary: Get real camera framerate
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: index
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Camera framerate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValueResponseNumber'
+  /device:
+    get:
+      tags:
+        - Device
+      summary: Get device information
+      security: []
+      responses:
+        '200':
+          description: Device information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+  /device/net/{adapter}:
+    get:
+      tags:
+        - Device
+      summary: Get network adapter information
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: adapter
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [lan, wifi]
+      responses:
+        '200':
+          description: Network adapter information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkAdapter'
+  /device/status:
+    get:
+      tags:
+        - Device
+      summary: Get device status
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Device status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceStatus'
+  /settings:
+    get:
+      tags:
+        - Device
+      summary: Get all settings
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: All settings.
+          content:
+            application/json:
+              schema:
+                type: object
+    post:
+      tags:
+        - Device
+      summary: Replace all settings
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Settings replaced.
+    put:
+      tags:
+        - Device
+      summary: Update settings
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Settings updated.
+  /storages:
+    get:
+      tags:
+        - Storage
+      summary: Get list of storages
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: A list of storages.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  storages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Storage'
+  /storages/{type}:
+    get:
+      tags:
+        - Storage
+      summary: Get storage information
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [INTERNAL, USB, NETWORK, IMAVE, ROOT]
+      responses:
+        '200':
+          description: Storage information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Storage'
+  /storage/eject/{type}:
+    put:
+      tags:
+        - Storage
+      summary: Eject storage
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [USB]
+      responses:
+        '200':
+          description: Storage ejected.
+  /storage/mount/{path}:
+    put:
+      tags:
+        - Storage
+      summary: Mount storage
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Mount status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValueResponseBoolean'
+  /folders/{type}/{path}:
+    get:
+      tags:
+        - Storage
+      summary: List files and folders
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [INTERNAL, USB, NETWORK, IMAVE, ROOT]
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of files and folders.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  list:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FileListItem'
+    put:
+      tags:
+        - Storage
+      summary: Create a new folder
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [INTERNAL, USB, NETWORK, IMAVE, ROOT]
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Folder created.
+  /files/{type}/{path}:
+    get:
+      tags:
+        - Storage
+      summary: Get file content
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [INTERNAL, USB, NETWORK, IMAVE, ROOT]
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File content.
+          content:
+            application/octet-stream: {}
+    put:
+      tags:
+        - Storage
+      summary: Rename file or set last modify time
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [INTERNAL, USB, NETWORK, IMAVE, ROOT]
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  properties:
+                    name:
+                      type: string
+                - type: object
+                  properties:
+                    lastModifyTime:
+                      type: integer
+      responses:
+        '200':
+          description: File updated.
+    post:
+      tags:
+        - Storage
+      summary: Create a new file
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [INTERNAL, USB, NETWORK, IMAVE, ROOT]
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/octet-stream: {}
+      responses:
+        '200':
+          description: File created.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  size:
+                    type: integer
+    delete:
+      tags:
+        - Storage
+      summary: Delete a file or folder
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [INTERNAL, USB, NETWORK, IMAVE, ROOT]
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File or folder deleted.
+  /file_info/{type}/{path}:
+    get:
+      tags:
+        - Storage
+      summary: Get file information
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [INTERNAL, USB, NETWORK, IMAVE, ROOT]
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileInfo'
+  /file_thumbnail/{type}/{path}:
+    get:
+      tags:
+        - Storage
+      summary: Get file thumbnail
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [INTERNAL, USB, NETWORK, IMAVE, ROOT]
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thumbnail image.
+          content:
+            image/jpeg: {}
+  /notify:
+    get:
+      tags:
+        - Notifications
+      summary: Get real-time notifications
+      security:
+        - sessionAuth: []
+      description: |
+        This creates a long-lived connection to the device, which sends notification responses as individual JSON objects.
+        The response is a stream in http `Transfer-encoding: chunked` format.
+      responses:
+        '200':
+          description: Notification stream.
+          content:
+            application/x-ndjson:
+              schema:
+                $ref: '#/components/schemas/NotificationEvent'
+  /study/start:
+    put:
+      tags:
+        - Study
+      summary: Start a new study
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudyStartRequest'
+      responses:
+        '200':
+          description: Study started.
+  /study/finish:
+    put:
+      tags:
+        - Study
+      summary: Finish the current study
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Study finished.
+  /study/status:
+    get:
+      tags:
+        - Study
+      summary: Get current study status
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Study status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudyStatus'
+  /study/snapshot:
+    put:
+      tags:
+        - Study
+      summary: Capture a snapshot
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: notes
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Snapshot captured.
+  /study/snapshot/{format}:
+    put:
+      tags:
+        - Study
+      summary: Capture a snapshot and get the image
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: format
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [png, jpg]
+        - name: notes
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Snapshot image.
+          content:
+            image/png: {}
+            image/jpeg: {}
+  /study/record/start:
+    put:
+      tags:
+        - Study
+      summary: Start video recording
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: notes
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Recording started.
+  /study/record/stop:
+    put:
+      tags:
+        - Study
+      summary: Stop video recording
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Recording stopped.
+  /study/record/pause:
+    put:
+      tags:
+        - Study
+      summary: Pause video recording
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Recording paused.
+  /study/record/resume:
+    put:
+      tags:
+        - Study
+      summary: Resume video recording
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Recording resumed.
+  /study/camera/swap:
+    put:
+      tags:
+        - Study
+      summary: Swap camera sources
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Cameras swapped.
+  /study/overlays:
+    post:
+      tags:
+        - Study
+      summary: Create overlays
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/Overlay'
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/Overlay'
+      responses:
+        '200':
+          description: Overlays created.
+    put:
+      tags:
+        - Study
+      summary: Update overlays
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/OverlayUpdate'
+      responses:
+        '200':
+          description: Overlays updated.
+  /study/overlays/{id}:
+    put:
+      tags:
+        - Study
+      summary: Update an overlay
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OverlayUpdate'
+      responses:
+        '200':
+          description: Overlay updated.
+    delete:
+      tags:
+        - Study
+      summary: Delete overlays
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: A single ID or a comma-separated list of IDs.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Overlays deleted.
+  /study/overlays/{id}/{element-id}:
+    put:
+      tags:
+        - Study
+      summary: Update an overlay element
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: element-id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OverlayElementUpdate'
+      responses:
+        '200':
+          description: Overlay element updated.
+  /stream/authorize:
+    get:
+      tags:
+        - Stream
+      summary: Authorize streaming
+      security:
+        - basicAuth: []
+      parameters:
+        - name: pin
+          in: query
+          schema:
+            type: string
+        - name: timeout
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Authorization result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StreamAuthorizationResponse'
+  /stream/video:
+    get:
+      tags:
+        - Stream
+      summary: Get video stream preview
+      security:
+        - basicAuth: []
+      parameters:
+        - name: pin
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Video stream.
+          content:
+            video/mp4: {}
+  /stream/audio:
+    get:
+      tags:
+        - Stream
+      summary: Get audio stream
+      security:
+        - basicAuth: []
+      parameters:
+        - name: pin
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Audio stream.
+          content:
+            audio/aac: {}
+  /stream/status:
+    get:
+      tags:
+        - Stream
+      summary: Get streaming status
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: Streaming status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StreamStatusResponse'
+  /system/reboot:
+    put:
+      tags:
+        - System
+      summary: Reboot the device
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Reboot initiated.
+  /system/reboot_recovery:
+    put:
+      tags:
+        - System
+      summary: Reboot the device to recovery
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Reboot to recovery initiated.
+  /system/format/{type}:
+    put:
+      tags:
+        - System
+      summary: Format storage
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [INTERNAL, USB]
+      responses:
+        '200':
+          description: Formatting started.
+  /system/reset_settings:
+    put:
+      tags:
+        - System
+      summary: Reset settings to defaults
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Settings reset.
+  /system/factory_reset:
+    put:
+      tags:
+        - System
+      summary: Reset device to factory settings
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Factory reset initiated.
+  /system/firmware:
+    post:
+      tags:
+        - System
+      summary: Upload firmware update
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/octet-stream: {}
+      responses:
+        '200':
+          description: Firmware update initiated.
+  /system/hostname:
+    get:
+      tags:
+        - System
+      summary: Get device hostname
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Hostname.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValueResponseString'
+    put:
+      tags:
+        - System
+      summary: Set device hostname
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                hostname:
+                  type: string
+      responses:
+        '200':
+          description: Hostname set.
+  /input/key/{code}:
+    put:
+      tags:
+        - Misc
+      summary: Send a key event
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Key event sent.
+  /logs:
+    get:
+      tags:
+        - Misc
+      summary: Get all logs
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: List of logs.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LogEntry'
+    post:
+      tags:
+        - Misc
+      summary: Add a log entry
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewLogEntry'
+      responses:
+        '200':
+          description: Log entry added.
+    delete:
+      tags:
+        - Misc
+      summary: Delete all logs
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: All logs deleted.
+  /logs/{id}:
+    delete:
+      tags:
+        - Misc
+      summary: Delete a log entry
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Log entry deleted.
+  /worklist:
+    get:
+      tags:
+        - DICOM
+      summary: Get patients from worklist server
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: List of patients.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PatientInfo'
+  /worklist/notify:
+    get:
+      tags:
+        - DICOM
+      summary: Get patients from worklist server as a stream
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Stream of patient objects.
+          content:
+            application/x-ndjson:
+              schema:
+                $ref: '#/components/schemas/PatientInfo'
+  /worklist/test:
+    put:
+      tags:
+        - DICOM
+      summary: Test worklist server connection
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Test result.
+  /pacs:
+    post:
+      tags:
+        - DICOM
+      summary: Schedule files for PACS upload
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Files scheduled.
+  /pacs/test:
+    put:
+      tags:
+        - DICOM
+      summary: Test PACS server connection
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Test result.
+  /pacs/retry:
+    put:
+      tags:
+        - DICOM
+      summary: Retry sending scheduled files
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Retry initiated.
+  /pacs/abort:
+    put:
+      tags:
+        - DICOM
+      summary: Abort current transfer
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Abort initiated.
+  /pacs/reset:
+    put:
+      tags:
+        - DICOM
+      summary: Reset PACS database
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: PACS DB reset.
+  /pacs/remove:
+    put:
+      tags:
+        - DICOM
+      summary: Remove files from PACS database
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Files removed.
+  /pacs/errors:
+    get:
+      tags:
+        - DICOM
+      summary: Get files with upload errors
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: List of files with errors.
+  /pacs/count:
+    get:
+      tags:
+        - DICOM
+      summary: Get count of tracked files
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Count of files.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValueResponseNumber'
+  /pacs/scheduled:
+    get:
+      tags:
+        - DICOM
+      summary: Get statistics of scheduled files
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Statistics.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  v:
+                    type: integer
+                  i:
+                    type: integer
+                  p:
+                    type: integer
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    sessionAuth:
+      type: apiKey
+      in: header
+      name: X-session
+  schemas:
+    RemoteClientInfo:
+      type: object
+      properties:
+        DeviceName:
+          type: string
+        AppVersion:
+          type: string
+        isUsbConnection:
+          type: boolean
+    BeginResponse:
+      type: object
+      properties:
+        study:
+          $ref: '#/components/schemas/StudyStatus'
+        patient:
+          $ref: '#/components/schemas/PatientInfo'
+        activeCamera:
+          type: integer
+    Camera:
+      type: object
+      properties:
+        index:
+          type: integer
+        label:
+          type: string
+        hasSignal:
+          type: boolean
+        extendRange:
+          type: boolean
+        width:
+          type: integer
+        height:
+          type: integer
+        framerate:
+          type: number
+    Resolution:
+      type: object
+      properties:
+        width:
+          type: integer
+        height:
+          type: integer
+    Device:
+      type: object
+      properties:
+        institutionName:
+          type: string
+        departmentName:
+          type: string
+        locationName:
+          type: string
+        deviceTitle:
+          type: string
+        hasInternalDisplay:
+          type: boolean
+        hasInternalStorage:
+          type: boolean
+        firmwareVersion:
+          type: string
+        serialNumber:
+          type: string
+        isLiteModel:
+          type: boolean
+        appVersion:
+          type: integer
+    NetworkAdapter:
+      type: object
+      properties:
+        ip:
+          type: string
+        mac:
+          type: string
+        ssid:
+          type: string
+    DeviceStatus:
+      type: object
+      properties:
+        activeStudy:
+          type: boolean
+        streamingEnabled:
+          type: boolean
+    Storage:
+      type: object
+      properties:
+        type:
+          type: string
+        freeSpace:
+          type: integer
+        totalSpace:
+          type: integer
+        nextStudyIndex:
+          type: integer
+        label:
+          type: string
+    FileListItem:
+      type: object
+      properties:
+        name:
+          type: string
+        isDir:
+          type: boolean
+        lastModified:
+          type: integer
+        size:
+          type: integer
+        exportStatus:
+          type: integer
+    FileInfo:
+      type: object
+      properties:
+        isDir:
+          type: boolean
+        lastModified:
+          type: integer
+        size:
+          type: integer
+    PatientInfo:
+      type: object
+      # Based on MVR_api.md, this is a large object.
+      # A full definition would be very long.
+      # Using a generic object for brevity.
+    StudyStartRequest:
+      type: object
+      properties:
+        path:
+          type: string
+        patient:
+          $ref: '#/components/schemas/PatientInfo'
+    StudyStatus:
+      type: object
+      properties:
+        storages:
+          type: array
+          items:
+            type: string
+        path:
+          type: string
+        creationDate:
+          type: integer
+        isReadyForRecording:
+          type: boolean
+        recordState:
+          type: string
+          enum: [STOPPED, RUNNING, PAUSED]
+        canCaptureSnapshot:
+          type: boolean
+        studyCounters:
+          type: object
+          properties:
+            nextFileSequence:
+              type: integer
+            lastImageSnapshotSequence:
+              type: integer
+            lastVideoRecordSequence:
+              type: integer
+    Overlay:
+      type: object
+      # Based on MVR_overlays.md
+      properties:
+        id:
+          type: integer
+        position:
+          $ref: '#/components/schemas/OverlayPosition'
+        fitToAreaOfInterest:
+          type: boolean
+        backgroundColor:
+          type: string
+        backgroundLocalFile:
+          type: string
+        elements:
+          type: array
+          items:
+            $ref: '#/components/schemas/OverlayElement'
+    OverlayUpdate:
+      type: object
+      # Based on MVR_overlays.md
+      properties:
+        id:
+          type: integer
+        position:
+          $ref: '#/components/schemas/OverlayPosition'
+        backgroundColor:
+          type: string
+        backgroundLocalFile:
+          type: string
+        elements:
+          type: array
+          items:
+            $ref: '#/components/schemas/OverlayElementUpdate'
+    OverlayElementUpdate:
+      type: object
+      properties:
+        id:
+          type: integer
+        # Other updatable fields from docs
+    OverlayPosition:
+      type: object
+      properties:
+        alignment:
+          type: string
+        width:
+          type: integer
+        height:
+          type: integer
+        offsetX:
+          type: integer
+        offsetY:
+          type: integer
+    OverlayElement:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [text, image]
+        # Other properties from MVR_overlays.md
+    StreamAuthorizationResponse:
+      type: object
+      properties:
+        result:
+          type: string
+          enum: [ACCEPTED, REJECTED, FULL, TIMEOUT, ERROR]
+        audio_enabled:
+          type: boolean
+        pin:
+          type: string
+    StreamStatusResponse:
+      type: object
+      properties:
+        value:
+          type: string
+          enum: [NO, ACTIVE, NO_STUDY, INPUT_CHANGED, ERROR, REMOVED]
+        no_signal:
+          type: boolean
+    LogEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        t:
+          type: integer
+        d:
+          type: string
+        c:
+          type: string
+        u:
+          type: string
+    NewLogEntry:
+      type: object
+      properties:
+        d:
+          type: string
+        c:
+          type: string
+    NotificationEvent:
+      type: object
+      description: "A single notification event. Can be one of many types."
+    ValueResponseNumber:
+      type: object
+      properties:
+        value:
+          type: number
+    ValueResponseBoolean:
+      type: object
+      properties:
+        value:
+          type: boolean
+    ValueResponseString:
+      type: object
+      properties:
+        value:
+          type: string
