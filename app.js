@@ -1010,7 +1010,7 @@
   function handleActionError(error, feedbackElement) {
     var message = normalizeErrorMessage(error);
     if (message.indexOf("Failed to fetch") !== -1) {
-      message += ". Check the IP address and network route. If curl works, the recorder is probably missing browser CORS support.";
+      message += ". Check the IP address and network route. Check if Remote Access is enabled on the target MVR recorder.";
     }
     setFeedback(feedbackElement, message, "bad");
     log(message, "bad");
