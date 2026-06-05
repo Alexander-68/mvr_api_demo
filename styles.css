@@ -540,15 +540,23 @@ h3 {
 dl {
   display: block;
   display: grid;
-  grid-template-columns: minmax(100px, 0.7fr) minmax(0, 1fr);
-  gap: 6px 12px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 5px 6px;
   margin: 0;
 }
 
 dt {
+  max-width: 118px;
   color: #657282;
   color: var(--muted);
   font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+dt::after {
+  content: ":";
 }
 
 dd {
