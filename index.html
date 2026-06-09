@@ -1187,12 +1187,13 @@ dd {
       els.scanStart.value = saved.scanStart || els.scanStart.value;
       els.scanEnd.value = saved.scanEnd || els.scanEnd.value;
       els.username.value = saved.username || "";
-      els.fixedSession.value = saved.fixedSession || generateSessionId();
+      els.fixedSession.value = saved.fixedSession || "";
     } catch (error) {
       log("Could not load saved browser state: " + error.message, "bad");
     }
     if (!els.fixedSession.value.trim()) {
       els.fixedSession.value = generateSessionId();
+      saveState();
     }
   }
 
