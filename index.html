@@ -883,7 +883,8 @@ dd {
             </label>
             <div class="field-row">
               <label for="fixedSession">Session ID</label>
-              <input id="fixedSession" name="fixedSession" type="text" autocomplete="off" placeholder="optional fixed ID">
+              <input id="fixedSession" name="fixedSession" type="text" autocomplete="off" placeholder="8-digit Session ID">
+              <button id="regenSessionBtn" type="button">Regenerate</button>
             </div>
             <div class="button-row">
               <button id="loginBtn" type="submit" disabled>Login</button>
@@ -1053,7 +1054,7 @@ dd {
       "deviceInfo", "networkInfo", "cameraInfo", "storageInfo", "studyInfo",
       "settingsInfo", "loginForm", "username", "password", "passwordIsMd5",
       "settingsModalBtn", "settingsModal", "settingsModalClose", "settingsModalContent",
-      "fixedSession", "loginBtn", "logoutBtn", "pingBtn", "studyForm",
+      "fixedSession", "regenSessionBtn", "loginBtn", "logoutBtn", "pingBtn", "studyForm",
       "studyPath", "patientId", "patientGender", "patientFirstName",
       "patientLastName", "finishStudyBtn", "notes", "returnImage",
       "snapshotBtn", "recordStartBtn", "recordStopBtn", "snapshotPreview",
@@ -1129,6 +1130,11 @@ dd {
       log("Cleared device list", "info");
     });
     els.refreshInfoBtn.addEventListener("click", refreshSelectedInfo);
+    els.regenSessionBtn.addEventListener("click", function () {
+      els.fixedSession.value = generateSessionId();
+      saveState();
+      log("Generated new Session ID: " + els.fixedSession.value, "info");
+    });
     els.loginForm.addEventListener("submit", onLogin);
     els.logoutBtn.addEventListener("click", onLogout);
     els.pingBtn.addEventListener("click", function () {
@@ -1162,6 +1168,13 @@ dd {
     });
   }
 
+  function generateSessionId() {
+    // Random 8-digit Session ID: > 10000001 and < 99999999
+    var min = 10000002;
+    var max = 99999998;
+    return String(min + Math.floor(Math.random() * (max - min + 1)));
+  }
+
   function loadSavedState() {
     try {
       var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
@@ -1174,9 +1187,12 @@ dd {
       els.scanStart.value = saved.scanStart || els.scanStart.value;
       els.scanEnd.value = saved.scanEnd || els.scanEnd.value;
       els.username.value = saved.username || "";
-      els.fixedSession.value = saved.fixedSession || "";
+      els.fixedSession.value = saved.fixedSession || generateSessionId();
     } catch (error) {
       log("Could not load saved browser state: " + error.message, "bad");
+    }
+    if (!els.fixedSession.value.trim()) {
+      els.fixedSession.value = generateSessionId();
     }
   }
 
